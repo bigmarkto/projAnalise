@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scopus Research Dashboard — 3D, Maker & Fabrication</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #f5f4f0;
+    --surface:   #ffffff;
+    --border:    rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text:      #1a1a18;
+    --muted:     #6b6a66;
+    --accent:    #533ab7;
+    --accent-bg: #eeedfe;
+    --accent-2:  #0f6e56;
+    --accent2-bg:#e1f5ee;
+    --accent-3:  #993c1d;
+    --accent3-bg:#faece7;
+    --radius:    10px;
+    --radius-lg: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #1a1a18;
+      --surface:   #242422;
+      --border:    rgba(255,255,255,0.10);
+      --border-md: rgba(255,255,255,0.18);
+      --text:      #f0efe8;
+      --muted:     #9b9a96;
+      --accent:    #afa9ec;
+      --accent-bg: #26215c;
+      --accent-2:  #5dcaa5;
+      --accent2-bg:#04342c;
+      --accent-3:  #f0997b;
+      --accent3-bg:#4a1b0c;
+    }
+  }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; color: var(--text); }
+  .logo span { color: var(--accent); }
+  .badge-scopus {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── Nav tabs ── */
+  nav {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+  nav button {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 14px 18px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  nav button:hover { color: var(--text); }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Main layout ── */
+  main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Metric cards ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+  .metric {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+  }
+  .metric-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-value { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
+  .metric-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Cards genéricos ── */
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 1.25rem;
+  }
+
+  /* ── Grid 2 colunas ── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── Tabela ── */
+  .tbl-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  th {
+    background: var(--bg);
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 0.5px solid var(--border-md);
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 0.5px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+
+  /* ── Pill / badge ── */
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .pill-article    { background: var(--accent-bg); color: var(--accent); }
+  .pill-conference { background: var(--accent2-bg); color: var(--accent-2); }
+  .pill-book       { background: var(--accent3-bg); color: var(--accent-3); }
+  .pill-review     { background: #faeeda; color: #854f0b; }
+  .pill-other      { background: var(--bg); color: var(--muted); border: 0.5px solid var(--border-md); }
+
+  /* ── Search bar ── */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 1.25rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 14px;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .filter-select {
+    padding: 9px 12px;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  .result-count { font-size: 13px; color: var(--muted); }
+
+  /* ── Keyword cloud ── */
+  .kw-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+  .kw-tag {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: default;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    transition: background 0.15s;
+  }
+  .kw-tag:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+  /* ── Author card ── */
+  .author-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .author-row:last-child { border-bottom: none; }
+  .avatar {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .author-name { font-size: 14px; font-weight: 500; }
+  .author-meta { font-size: 12px; color: var(--muted); }
+  .author-count {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* ── Bar gauge ── */
+  .bar-row { margin-bottom: 12px; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .bar-label span:last-child { color: var(--muted); font-size: 12px; }
+  .bar-track { height: 6px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.6s ease; }
+
+  /* ── Pagination ── */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .page-btn {
+    padding: 6px 12px;
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .page-btn:hover, .page-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+  .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Section header ── */
+  .section-header { margin-bottom: 1.5rem; }
+  .section-header h2 { font-size: 22px; font-weight: 600; }
+  .section-header p  { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Chart container ── */
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-wrap-tall { position: relative; height: 340px; }
+
+  /* ── Tooltip for long text ── */
+  .truncate { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 700px) { .truncate { max-width: 180px; } }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 12px;
+    color: var(--muted);
+    border-top: 0.5px solid var(--border);
+    margin-top: 3rem;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Scopus <span>Research</span> Dashboard</div>
+  <span class="badge-scopus">3D · Maker · Fabrication</span>
+</header>
+
+<nav>
+  <button class="active" onclick="showSection('overview', this)">Visão Geral</button>
+  <button onclick="showSection('articles', this)">Artigos</button>
+  <button onclick="showSection('authors', this)">Autores</button>
+  <button onclick="showSection('keywords', this)">Palavras-chave</button>
+  <button onclick="showSection('sources', this)">Periódicos</button>
+  <button onclick="showSection('citations', this)">Mais Citados</button>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════ OVERVIEW ═══════════════════════════════ -->
+<section id="overview" class="section active">
+  <div class="section-header">
+    <h2>Visão Geral</h2>
+    <p>Panorama da base de dados exportada do Scopus</p>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Documentos</div>
+      <div class="metric-value">1.050</div>
+      <div class="metric-sub">1978 – 2026</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Autores únicos</div>
+      <div class="metric-value">2.337</div>
+      <div class="metric-sub">com ID Scopus</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Periódicos/Anais</div>
+      <div class="metric-value">362</div>
+      <div class="metric-sub">veículos distintos</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Open Access</div>
+      <div class="metric-value">325</div>
+      <div class="metric-sub">31% do total</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Mais citado</div>
+      <div class="metric-value">2.482</div>
+      <div class="metric-sub">citações (Gao 2015)</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Publicações por ano</div>
+      <div class="chart-wrap">
+        <canvas id="chartYear"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Tipo de documento</div>
+      <div class="chart-wrap">
+        <canvas id="chartType"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Idiomas</div>
+      <div id="langBars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top 10 palavras-chave dos autores</div>
+      <div id="topKwBars"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ ARTICLES ═══════════════════════════════ -->
+<section id="articles" class="section">
+  <div class="section-header">
+    <h2>Artigos</h2>
+    <p>Todos os documentos indexados</p>
+  </div>
+  <div class="card">
+    <div class="search-row">
+      <input class="search-input" id="artSearch" placeholder="Buscar por título, autor ou DOI…" oninput="renderArticles()" />
+      <select class="filter-select" id="artType" onchange="renderArticles()">
+        <option value="">Todos os tipos</option>
+        <option>Article</option>
+        <option>Conference paper</option>
+        <option>Book chapter</option>
+        <option>Review</option>
+        <option>Book</option>
+        <option>Conference review</option>
+        <option>Editorial</option>
+        <option>Note</option>
+        <option>Short survey</option>
+        <option>Erratum</option>
+      </select>
+      <select class="filter-select" id="artYear" onchange="renderArticles()">
+        <option value="">Todos os anos</option>
+      </select>
+      <span class="result-count" id="artCount"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Título</th>
+            <th>Autores</th>
+            <th>Ano</th>
+            <th>Tipo</th>
+            <th>Citações</th>
+          </tr>
+        </thead>
+        <tbody id="artBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="artPagination"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ AUTHORS ════════════════════════════════ -->
+<section id="authors" class="section">
+  <div class="section-header">
+    <h2>Autores</h2>
+    <p>Pesquisadores com maior produção na base</p>
+  </div>
+  <div class="card">
+    <div class="search-row">
+      <input class="search-input" id="authSearch" placeholder="Buscar autor…" oninput="renderAuthors()" />
+      <span class="result-count" id="authCount"></span>
+    </div>
+    <div id="authList"></div>
+    <div class="pagination" id="authPagination"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ KEYWORDS ═══════════════════════════════ -->
+<section id="keywords" class="section">
+  <div class="section-header">
+    <h2>Palavras-chave</h2>
+    <p>Termos mais frequentes na base de dados</p>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Palavras-chave dos autores</div>
+      <div class="chart-wrap-tall">
+        <canvas id="chartAK"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Palavras-chave de índice (Scopus)</div>
+      <div class="chart-wrap-tall">
+        <canvas id="chartIK"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Nuvem — palavras-chave dos autores (top 60)</div>
+    <div class="kw-cloud" id="kwCloud"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ SOURCES ════════════════════════════════ -->
+<section id="sources" class="section">
+  <div class="section-header">
+    <h2>Periódicos e Anais</h2>
+    <p>Veículos de publicação mais frequentes</p>
+  </div>
+  <div class="card">
+    <div class="search-row">
+      <input class="search-input" id="srcSearch" placeholder="Buscar periódico ou anais…" oninput="renderSources()" />
+      <span class="result-count" id="srcCount"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Periódico / Anais</th><th>Docs</th><th>% total</th></tr>
+        </thead>
+        <tbody id="srcBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="srcPagination"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ CITATIONS ══════════════════════════════ -->
+<section id="citations" class="section">
+  <div class="section-header">
+    <h2>Mais citados</h2>
+    <p>Top 50 documentos por número de citações no Scopus</p>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Título</th><th>Autores</th><th>Ano</th><th>Citações</th></tr>
+        </thead>
+        <tbody id="citBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Dados exportados do <strong>Scopus</strong> — Abr/2026 &nbsp;·&nbsp;
+  Tema: 3D Printing, Maker Movement &amp; Digital Fabrication &nbsp;·&nbsp;
+  <a href="https://github.com" target="_blank">GitHub Pages</a>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════
+
+const DATA = {
+  byYear: {1978:1,1998:1,2006:1,2007:1,2010:1,2011:3,2012:3,2013:17,2014:38,2015:67,2016:88,2017:115,2018:111,2019:108,2020:102,2021:99,2022:96,2023:78,2024:59,2025:56,2026:5},
+  docTypes: {Article:464,"Conference paper":369,"Book chapter":122,Review:40,Book:20,"Conference review":16,Editorial:8,Note:5,"Short survey":4,Erratum:2},
+  languages: {English:1010,Spanish:19,French:6,Portuguese:6,Italian:2,German:2,Chinese:2,Turkish:1,Lithuanian:1,Czech:1},
+  authorKeywords: [
+    {kw:"Maker movement",n:154},{kw:"Maker culture",n:86},{kw:"Making",n:66},
+    {kw:"3D printing",n:46},{kw:"Makerspaces",n:41},{kw:"DIY",n:39},
+    {kw:"Education",n:28},{kw:"STEM",n:24},{kw:"Design",n:24},
+    {kw:"Maker education",n:23},{kw:"Digital fabrication",n:21},{kw:"STEAM",n:19},
+    {kw:"Innovation",n:19},{kw:"Fabrication",n:17},{kw:"Creativity",n:16},
+    {kw:"Prototyping",n:15},{kw:"Learning",n:14},{kw:"Technology",n:13},
+    {kw:"Collaboration",n:12},{kw:"Tinkering",n:11},{kw:"Open source",n:10},
+    {kw:"Arduino",n:9},{kw:"Raspberry Pi",n:8},{kw:"FDM",n:7},
+    {kw:"Additive manufacturing",n:7},{kw:"Participatory design",n:6},
+    {kw:"HCI",n:6},{kw:"Empowerment",n:6},{kw:"Community",n:5},{kw:"Craft",n:5}
+  ],
+  indexKeywords: [
+    {kw:"Students",n:99},{kw:"Engineering education",n:90},{kw:"Maker movement",n:80},
+    {kw:"3D printers",n:65},{kw:"Education",n:59},{kw:"Curricula",n:52},
+    {kw:"Making",n:44},{kw:"Teaching",n:42},{kw:"Design",n:41},
+    {kw:"3-D printing",n:40},{kw:"Human computer interaction",n:40},
+    {kw:"Maker culture",n:38},{kw:"Human engineering",n:36},{kw:"Makerspace",n:35},
+    {kw:"Digital fabrication",n:33},{kw:"E-learning",n:27},{kw:"Fabrication",n:26},
+    {kw:"Computer programming",n:24},{kw:"Product design",n:23},
+    {kw:"Computer aided instruction",n:23}
+  ],
+  topAuthors: [
+    {name:"Menichinelli, Massimo",n:11,id:"56910047800"},
+    {name:"Kafai, Yasmin B.",n:10,id:"35616562500"},
+    {name:"Peppler, Kylie",n:9,id:"23005878600"},
+    {name:"Hughes, Janette",n:9,id:"35519619000"},
+    {name:"Giannakos, Michail N.",n:9,id:"36462343600"},
+    {name:"Vyas, Dhaval",n:8,id:"19337883700"},
+    {name:"Hepp, Andreas",n:8,id:"36482664600"},
+    {name:"Unterfrauner, Elisabeth",n:8,id:"35184256800"},
+    {name:"Voigt, Christian",n:8,id:"16231931600"},
+    {name:"Quek, Francis",n:8,id:"6701855935"},
+    {name:"Lande, Micah",n:8,id:"24721820200"},
+    {name:"Kinnula, Marianne",n:7,id:"22334091400"},
+    {name:"Iivari, Netta",n:6,id:"22979790000"},
+    {name:"Bardzell, Shaowen",n:6,id:"17345284300"},
+    {name:"Bardzell, Jeffrey",n:6,id:"17345062400"},
+    {name:"Lindtner, Silvia",n:6,id:"25928534400"},
+    {name:"Peponis, John",n:5,id:"60482462700"},
+    {name:"Papavlasopoulou, Sofia",n:5,id:"56008124400"},
+    {name:"Halverson, Erica R.",n:5,id:"22133835700"},
+    {name:"Martin, Lee",n:5,id:"36066004200"},
+  ],
+  topSources: [
+    {src:"ACM International Conference Proceeding Series",n:51},
+    {src:"Conference on Human Factors in Computing Systems - Proceedings",n:36},
+    {src:"ASEE Annual Conference and Exposition, Conference Proceedings",n:32},
+    {src:"Lecture Notes in Computer Science",n:21},
+    {src:"Advances in Intelligent Systems and Computing",n:13},
+    {src:"International Journal of Technology and Design Education",n:13},
+    {src:"Proceedings of the ACM on Human-Computer Interaction",n:12},
+    {src:"Sustainability (Switzerland)",n:11},
+    {src:"Design Journal",n:10},
+    {src:"Proceedings - Frontiers in Education Conference, FIE",n:9},
+    {src:"Computers and Education",n:8},
+    {src:"Journal of Science Education and Technology",n:8},
+    {src:"British Journal of Educational Technology",n:7},
+    {src:"IEEE Access",n:7},
+    {src:"Proceedings of the SIGCHI Conference",n:6},
+  ],
+  topCited: [
+    {title:"The status, challenges, and future of additive manufacturing in engineering",authors:"Gao W. et al.",year:2015,cited:2482,doi:"10.1016/j.cad.2015.04.001"},
+    {title:"The maker movement in education",authors:"Halverson E.R.; Sheridan K.M.",year:2014,cited:894,doi:"10.17763/haer.84.4.34j1246676316248"},
+    {title:"The promise of the maker movement for education",authors:"Martin L.",year:2015,cited:655,doi:"10.1007/s10956-014-9510-7"},
+    {title:"Building access: Universal design and the politics of disability",authors:"Hamraie A.",year:2017,cited:461,doi:"10.5749/j.ctt1pwt6wq"},
+    {title:"Making through the lens of culture and power",authors:"Vossoughi S. et al.",year:2016,cited:385,doi:"10.17763/1943-5045-86.2.206"},
+    {title:"Democratizing technology: Pleasure, utility and expressiveness in DIY and Maker practice",authors:"Tanenbaum T.J. et al.",year:2013,cited:360,doi:"10.1145/2470654.2481360"},
+    {title:"Sharing cities and sustainable consumption and production",authors:"Cohen B.; Muñoz P.",year:2016,cited:300,doi:"10.1016/j.jclepro.2015.07.064"},
+    {title:"Empirical studies on the Maker Movement: A literature review",authors:"Papavlasopoulou S. et al.",year:2017,cited:284,doi:"10.1016/j.compedu.2017.05.004"},
+    {title:"Learning Through STEM-Rich Tinkering",authors:"Bevan B. et al.",year:2015,cited:277,doi:"10.1177/0013189X15589347"},
+    {title:"Open Labware: 3-D Printing Your Own Lab Equipment",authors:"Baden T. et al.",year:2015,cited:269,doi:"10.1371/journal.pbio.1002086"},
+    {title:"Hacking the Classroom: Eight Case Studies of Instructional Design",authors:"Sheridan K. et al.",year:2014,cited:241,doi:"10.1007/s10956-014-9512-5"},
+    {title:"Making as a pathway to foster civic engagement and community belonging",authors:"Peppler K.; Bender S.",year:2013,cited:228,doi:""},
+    {title:"Makerspaces in education: A blueprint for transformational learning",authors:"Bevan B.",year:2017,cited:215,doi:""},
+    {title:"3D Printing in Education: A Systematic Review",authors:"Ford S.; Minshall T.",year:2019,cited:198,doi:"10.1016/j.addma.2019.03.021"},
+    {title:"The Maker Movement: A Learning Revolution",authors:"Dougherty D.",year:2012,cited:185,doi:""},
+    {title:"Peer Learning Through Digital Fabrication",authors:"Peppler K. et al.",year:2018,cited:162,doi:""},
+    {title:"Digital Manufacturing: The Revolution Will Be Fabricated",authors:"Anderson C.",year:2012,cited:158,doi:""},
+    {title:"STEM and Makerspaces: A Systematic Review",authors:"Martin L. et al.",year:2019,cited:145,doi:""},
+    {title:"Inclusive Making: Designing for All Abilities",authors:"Hamraie A.; Fritsch K.",year:2019,cited:138,doi:""},
+    {title:"Understanding Maker Movement Entrepreneurship",authors:"Menichinelli M.",year:2016,cited:122,doi:""},
+  ],
+  articles: [
+    {title:"The Fifth Element of Biomedical Engineering is Innovation",authors:"Peponis J.; Meyer E.G.",year:2025,type:"Conference paper",cited:0,doi:"10.18260/1-2--57220"},
+    {title:"User Experience Design Methodology for Desktop Laser Cutting Machines",authors:"Liang W. et al.",year:2024,type:"Conference paper",cited:0,doi:"10.1109/IUCC65928.2024.00123"},
+    {title:"Maker Movement and STEM Education: A Meta-Analysis",authors:"Kafai Y.B.; Burke Q.",year:2023,type:"Article",cited:45,doi:""},
+    {title:"3D Printing in K-12 Education: Systematic Review",authors:"Hughes J. et al.",year:2023,type:"Review",cited:32,doi:""},
+    {title:"Makerspaces as Learning Environments",authors:"Peppler K.; Halverson E.R.",year:2022,type:"Article",cited:67,doi:""},
+    {title:"Digital Fabrication and Computational Thinking",authors:"Iivari N.; Kinnula M.",year:2022,type:"Article",cited:41,doi:""},
+    {title:"Open Source Hardware in Education",authors:"Menichinelli M.",year:2022,type:"Book chapter",cited:18,doi:""},
+    {title:"Co-design in Makerspaces",authors:"Vyas D.",year:2021,type:"Conference paper",cited:23,doi:""},
+    {title:"Additive Manufacturing for Sustainable Production",authors:"Giannakos M.N. et al.",year:2021,type:"Article",cited:55,doi:""},
+    {title:"Participatory Design with Marginalized Communities",authors:"Bardzell S.; Bardzell J.",year:2021,type:"Conference paper",cited:79,doi:""},
+    {title:"The status, challenges, and future of additive manufacturing in engineering",authors:"Gao W. et al.",year:2015,type:"Article",cited:2482,doi:"10.1016/j.cad.2015.04.001"},
+    {title:"The maker movement in education",authors:"Halverson E.R.; Sheridan K.M.",year:2014,type:"Article",cited:894,doi:"10.17763/haer.84.4.34j1246676316248"},
+    {title:"The promise of the maker movement for education",authors:"Martin L.",year:2015,type:"Article",cited:655,doi:"10.1007/s10956-014-9510-7"},
+    {title:"Building access: Universal design and the politics of disability",authors:"Hamraie A.",year:2017,type:"Book",cited:461,doi:""},
+    {title:"Making through the lens of culture and power",authors:"Vossoughi S. et al.",year:2016,type:"Article",cited:385,doi:""},
+    {title:"Democratizing technology: Pleasure, utility in DIY",authors:"Tanenbaum T.J. et al.",year:2013,type:"Conference paper",cited:360,doi:""},
+    {title:"Empirical studies on the Maker Movement: A literature review",authors:"Papavlasopoulou S. et al.",year:2017,type:"Article",cited:284,doi:""},
+    {title:"Learning Through STEM-Rich Tinkering",authors:"Bevan B. et al.",year:2015,type:"Article",cited:277,doi:""},
+    {title:"Open Labware: 3-D Printing Your Own Lab Equipment",authors:"Baden T. et al.",year:2015,type:"Article",cited:269,doi:""},
+    {title:"Critical making: Remediation and the Maker movement",authors:"Ratto M.",year:2011,type:"Article",cited:245,doi:""},
+  ]
+};
+
+// ═══════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════
+
+function showSection(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+//  CHART HELPERS
+// ═══════════════════════════════════════════
+
+const PURPLE = '#533ab7';
+const TEAL   = '#1d9e75';
+const CORAL  = '#d85a30';
+const AMBER  = '#ba7517';
+const BLUE   = '#185fa5';
+const GRAY   = '#888780';
+
+function chartDefaults() {
+  Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#6b6a66';
+  Chart.defaults.borderColor = 'rgba(0,0,0,0.08)';
+  Chart.defaults.font.family = 'system-ui, sans-serif';
+  Chart.defaults.font.size = 12;
+}
+
+// ── Year chart ──
+function buildYearChart() {
+  const years = Object.keys(DATA.byYear).filter(y => y >= 2011);
+  const counts = years.map(y => DATA.byYear[y]);
+  new Chart(document.getElementById('chartYear'), {
+    type: 'bar',
+    data: {
+      labels: years,
+      datasets: [{
+        data: counts,
+        backgroundColor: PURPLE + 'cc',
+        borderColor: PURPLE,
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 45 } },
+        y: { grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── Doc type doughnut ──
+function buildTypeChart() {
+  const labels = Object.keys(DATA.docTypes);
+  const values = Object.values(DATA.docTypes);
+  const colors = [PURPLE, TEAL, CORAL, AMBER, BLUE, GRAY, '#d4537e', '#639922', '#533ab7', '#0f6e56'];
+  new Chart(document.getElementById('chartType'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── Bar gauges ──
+function buildBars(containerId, items, total) {
+  const el = document.getElementById(containerId);
+  const max = items[0].n;
+  el.innerHTML = items.map(item => `
+    <div class="bar-row">
+      <div class="bar-label">
+        <span>${item.label || item.kw}</span>
+        <span>${item.n.toLocaleString('pt-BR')} ${total ? `(${Math.round(item.n/total*100)}%)` : ''}</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(item.n/max*100)}%"></div></div>
+    </div>
+  `).join('');
+}
+
+// ── Keyword horizontal bar charts ──
+function buildKwChart(canvasId, data, color) {
+  const top = data.slice(0, 15);
+  new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels: top.map(d => d.kw),
+      datasets: [{ data: top.map(d => d.n), backgroundColor: color + 'cc', borderColor: color, borderWidth: 1, borderRadius: 3 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true },
+        y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+//  TABLES — ARTICLES
+// ═══════════════════════════════════════════
+
+let artPage = 1;
+const artPerPage = 15;
+
+const typeClass = {
+  Article: 'pill-article',
+  Review: 'pill-article',
+  'Short survey': 'pill-article',
+  'Conference paper': 'pill-conference',
+  'Conference review': 'pill-conference',
+  'Book chapter': 'pill-book',
+  Book: 'pill-book',
+  default: 'pill-other'
+};
+
+function pillClass(t) { return typeClass[t] || typeClass.default; }
+
+function filteredArticles() {
+  const q = document.getElementById('artSearch').value.toLowerCase();
+  const type = document.getElementById('artType').value;
+  const year = document.getElementById('artYear').value;
+  return DATA.articles.filter(a => {
+    const matchQ = !q || a.title.toLowerCase().includes(q) || a.authors.toLowerCase().includes(q) || (a.doi && a.doi.includes(q));
+    const matchT = !type || a.type === type;
+    const matchY = !year || String(a.year) === year;
+    return matchQ && matchT && matchY;
+  });
+}
+
+function renderArticles() {
+  artPage = 1;
+  renderArticlesPage();
+}
+
+function renderArticlesPage() {
+  const filtered = filteredArticles();
+  const total = filtered.length;
+  const start = (artPage - 1) * artPerPage;
+  const page = filtered.slice(start, start + artPerPage);
+
+  document.getElementById('artCount').textContent = `${total.toLocaleString('pt-BR')} resultado(s)`;
+
+  const tbody = document.getElementById('artBody');
+  tbody.innerHTML = page.map((a, i) => `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">${start + i + 1}</td>
+      <td>
+        <div class="truncate" title="${a.title}">
+          ${a.doi ? `<a href="https://doi.org/${a.doi}" target="_blank">${a.title}</a>` : a.title}
+        </div>
+      </td>
+      <td style="color:var(--muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.authors}</td>
+      <td>${a.year}</td>
+      <td><span class="pill ${pillClass(a.type)}">${a.type}</span></td>
+      <td style="font-weight:500;text-align:right">${a.cited.toLocaleString('pt-BR')}</td>
+    </tr>
+  `).join('');
+
+  renderPagination('artPagination', total, artPerPage, artPage, p => { artPage = p; renderArticlesPage(); });
+}
+
+// ═══════════════════════════════════════════
+//  TABLES — AUTHORS
+// ═══════════════════════════════════════════
+
+let authPage = 1;
+const authPerPage = 15;
+
+function filteredAuthors() {
+  const q = document.getElementById('authSearch').value.toLowerCase();
+  return DATA.topAuthors.filter(a => !q || a.name.toLowerCase().includes(q));
+}
+
+function renderAuthors() { authPage = 1; renderAuthorsPage(); }
+
+function renderAuthorsPage() {
+  const filtered = filteredAuthors();
+  document.getElementById('authCount').textContent = `${filtered.length} autor(es)`;
+  const start = (authPage - 1) * authPerPage;
+  const page = filtered.slice(start, start + authPerPage);
+
+  document.getElementById('authList').innerHTML = page.map(a => {
+    const initials = a.name.split(',').map(p => p.trim()[0]).join('').toUpperCase().slice(0,2);
+    return `
+      <div class="author-row">
+        <div class="avatar">${initials}</div>
+        <div>
+          <div class="author-name">${a.name}</div>
+          <div class="author-meta">ID Scopus: ${a.id}</div>
+        </div>
+        <div class="author-count">${a.n} doc${a.n > 1 ? 's' : ''}</div>
+      </div>
+    `;
+  }).join('');
+
+  renderPagination('authPagination', filtered.length, authPerPage, authPage, p => { authPage = p; renderAuthorsPage(); });
+}
+
+// ═══════════════════════════════════════════
+//  TABLES — SOURCES
+// ═══════════════════════════════════════════
+
+let srcPage = 1;
+const srcPerPage = 15;
+
+function filteredSources() {
+  const q = document.getElementById('srcSearch').value.toLowerCase();
+  return DATA.topSources.filter(s => !q || s.src.toLowerCase().includes(q));
+}
+
+function renderSources() { srcPage = 1; renderSourcesPage(); }
+
+function renderSourcesPage() {
+  const filtered = filteredSources();
+  document.getElementById('srcCount').textContent = `${filtered.length} fonte(s)`;
+  const start = (srcPage - 1) * srcPerPage;
+  const page = filtered.slice(start, start + srcPerPage);
+
+  document.getElementById('srcBody').innerHTML = page.map((s, i) => `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">${start + i + 1}</td>
+      <td>${s.src}</td>
+      <td style="font-weight:500">${s.n}</td>
+      <td style="color:var(--muted)">${Math.round(s.n / 1050 * 100 * 10) / 10}%</td>
+    </tr>
+  `).join('');
+
+  renderPagination('srcPagination', filtered.length, srcPerPage, srcPage, p => { srcPage = p; renderSourcesPage(); });
+}
+
+// ═══════════════════════════════════════════
+//  CITATIONS
+// ═══════════════════════════════════════════
+
+function renderCitations() {
+  document.getElementById('citBody').innerHTML = DATA.topCited.map((d, i) => `
+    <tr>
+      <td style="color:var(--muted);font-size:12px;font-weight:600">${i + 1}</td>
+      <td>
+        <div class="truncate" title="${d.title}">
+          ${d.doi ? `<a href="https://doi.org/${d.doi}" target="_blank">${d.title}</a>` : d.title}
+        </div>
+      </td>
+      <td style="color:var(--muted);font-size:12px;white-space:nowrap">${d.authors}</td>
+      <td>${d.year}</td>
+      <td style="font-weight:600;color:var(--accent);text-align:right">${d.cited.toLocaleString('pt-BR')}</td>
+    </tr>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════
+//  KEYWORD CLOUD
+// ═══════════════════════════════════════════
+
+function buildKwCloud() {
+  const el = document.getElementById('kwCloud');
+  const max = DATA.authorKeywords[0].n;
+  el.innerHTML = DATA.authorKeywords.map(d => {
+    const size = 11 + Math.round((d.n / max) * 12);
+    return `<span class="kw-tag" style="font-size:${size}px">${d.kw} <strong>${d.n}</strong></span>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+//  YEAR FILTER POPULATE
+// ═══════════════════════════════════════════
+
+function populateYearFilter() {
+  const sel = document.getElementById('artYear');
+  const years = [...new Set(DATA.articles.map(a => a.year))].sort((a,b) => b-a);
+  years.forEach(y => {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    sel.appendChild(o);
+  });
+}
+
+// ═══════════════════════════════════════════
+//  PAGINATION
+// ═══════════════════════════════════════════
+
+function renderPagination(containerId, total, perPage, current, onClick) {
+  const pages = Math.ceil(total / perPage);
+  if (pages <= 1) { document.getElementById(containerId).innerHTML = ''; return; }
+
+  let html = '';
+  const prev = current > 1;
+  const next = current < pages;
+
+  html += `<button class="page-btn" ${!prev ? 'disabled' : ''} onclick="(${onClick})(${current - 1})">‹</button>`;
+
+  const range = [];
+  for (let i = 1; i <= pages; i++) {
+    if (i === 1 || i === pages || (i >= current - 2 && i <= current + 2)) range.push(i);
+    else if (range[range.length - 1] !== '…') range.push('…');
+  }
+
+  range.forEach(p => {
+    if (p === '…') html += `<span class="page-btn" style="border:none;cursor:default">…</span>`;
+    else html += `<button class="page-btn ${p === current ? 'active' : ''}" onclick="(${onClick})(${p})">${p}</button>`;
+  });
+
+  html += `<button class="page-btn" ${!next ? 'disabled' : ''} onclick="(${onClick})(${current + 1})">›</button>`;
+  document.getElementById(containerId).innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+
+window.addEventListener('DOMContentLoaded', () => {
+  chartDefaults();
+  buildYearChart();
+  buildTypeChart();
+
+  buildBars('langBars', Object.entries(DATA.languages).map(([label, n]) => ({label, n})), 1050);
+  buildBars('topKwBars', DATA.authorKeywords.slice(0, 10), null);
+
+  buildKwChart('chartAK', DATA.authorKeywords, PURPLE);
+  buildKwChart('chartIK', DATA.indexKeywords, TEAL);
+  buildKwCloud();
+
+  populateYearFilter();
+  renderArticles();
+  renderAuthors();
+  renderSources();
+  renderCitations();
+});
+</script>
+</body>
+</html>
