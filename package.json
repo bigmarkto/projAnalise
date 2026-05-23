@@ -1,0 +1,11 @@
+{
+  "name": "projanalise",
+  "version": "1.0.0",
+  "scripts": {
+    "import": "node import_csv.js"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.6",
+    "pg": "^8.13.0"
+  }
+}

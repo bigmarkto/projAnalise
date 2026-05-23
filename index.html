@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Scopus Research Dashboard — 3D, Maker & Fabrication</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -320,14 +321,61 @@
   }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
+
+  /* ── Header actions ── */
+  .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .btn-action {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 0.5px solid var(--border-md);
+    background: var(--surface); color: var(--text);
+    white-space: nowrap; transition: background 0.15s, color 0.15s, opacity 0.15s;
+  }
+  .btn-action:hover:not(:disabled) { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+  .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-load { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-load:hover:not(:disabled) { background: var(--accent); color: #fff; opacity: 0.85; }
+
+  /* ── Loading overlay ── */
+  .loading-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 999;
+    align-items: center; justify-content: center;
+  }
+  .loading-overlay.show { display: flex; }
+  .loading-box {
+    background: var(--surface); border-radius: var(--radius-lg);
+    padding: 2rem 2.5rem; text-align: center; min-width: 240px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--border-md);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite; margin: 0 auto 1rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-msg { font-size: 14px; color: var(--muted); }
+
+  /* ── Data source badge ── */
+  .badge-live { background: var(--accent2-bg); color: var(--accent-2); }
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">Scopus <span>Research</span> Dashboard</div>
-  <span class="badge-scopus">3D · Maker · Fabrication</span>
+  <div class="header-right">
+    <span id="dataBadge" class="badge-scopus">Dados Estáticos</span>
+    <button id="btnLoad" class="btn-action btn-load" onclick="loadFromSupabase()">↓ Carregar do Banco</button>
+    <button id="btnClear" class="btn-action" onclick="clearSupabaseData()" disabled>✕ Limpar</button>
+  </div>
 </header>
+
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div class="loading-msg" id="loadingMsg">Carregando dados do Supabase…</div>
+  </div>
+</div>
 
 <nav>
   <button class="active" onclick="showSection('overview', this)">Visão Geral</button>
@@ -544,7 +592,7 @@
 //  DATA
 // ═══════════════════════════════════════════
 
-const DATA = {
+let DATA = {
   byYear: {1978:1,1998:1,2006:1,2007:1,2010:1,2011:3,2012:3,2013:17,2014:38,2015:67,2016:88,2017:115,2018:111,2019:108,2020:102,2021:99,2022:96,2023:78,2024:59,2025:56,2026:5},
   docTypes: {Article:464,"Conference paper":369,"Book chapter":122,Review:40,Book:20,"Conference review":16,Editorial:8,Note:5,"Short survey":4,Erratum:2},
   languages: {English:1010,Spanish:19,French:6,Portuguese:6,Italian:2,German:2,Chinese:2,Turkish:1,Lithuanian:1,Czech:1},
@@ -655,6 +703,192 @@ const DATA = {
   ]
 };
 
+// Cópia dos dados estáticos para restaurar após limpar
+const STATIC_DATA = JSON.parse(JSON.stringify(DATA));
+
+// ═══════════════════════════════════════════
+//  SUPABASE
+// ═══════════════════════════════════════════
+
+const SUPABASE_URL      = 'https://mltqgslcblrfpwsbdbxn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdHFnc2xjYmxyZnB3c2JkYnhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NDMxMzEsImV4cCI6MjA5NDMxOTEzMX0.ah7-19bAFSQbhU5Q8TIuXzIZHLwss1w9PB3RhEkypXQ';
+const _supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function loadFromSupabase() {
+  const btnLoad  = document.getElementById('btnLoad');
+  const btnClear = document.getElementById('btnClear');
+  const overlay  = document.getElementById('loadingOverlay');
+  const msgEl    = document.getElementById('loadingMsg');
+
+  btnLoad.disabled    = true;
+  btnLoad.textContent = '⏳ Carregando…';
+  overlay.classList.add('show');
+
+  try {
+    msgEl.textContent = 'Buscando registros no banco…';
+
+    // Supabase limita a 1000 por request; busca todas as páginas
+    let allRows = [], from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data: rows, error } = await _supa
+        .from('articles')
+        .select('*')
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      if (!rows || rows.length === 0) break;
+      allRows = allRows.concat(rows);
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    }
+
+    if (allRows.length === 0) {
+      alert('Nenhum dado encontrado.\nExecute primeiro: npm install && node import_csv.js');
+      return;
+    }
+
+    msgEl.textContent = `Processando ${allRows.length} registros…`;
+    await new Promise(r => setTimeout(r, 40));
+
+    const newData = computeAggregations(allRows);
+    Object.assign(DATA, newData);
+
+    msgEl.textContent = 'Atualizando visualizações…';
+    await new Promise(r => setTimeout(r, 40));
+
+    renderAll();
+    updateMetrics(allRows);
+
+    const badge = document.getElementById('dataBadge');
+    badge.textContent  = `Supabase · ${allRows.length} docs`;
+    badge.className    = 'badge-scopus badge-live';
+    btnClear.disabled  = false;
+
+  } catch (err) {
+    alert('Erro ao carregar: ' + err.message);
+    console.error(err);
+  } finally {
+    overlay.classList.remove('show');
+    btnLoad.disabled    = false;
+    btnLoad.textContent = '↓ Carregar do Banco';
+  }
+}
+
+function computeAggregations(rows) {
+  const byYear = {}, docTypes = {}, languages = {};
+  const akCounts = {}, ikCounts = {}, authCounts = {}, authIds = {}, srcCounts = {};
+
+  rows.forEach(row => {
+    if (row.year) byYear[row.year] = (byYear[row.year] || 0) + 1;
+    if (row.document_type) docTypes[row.document_type] = (docTypes[row.document_type] || 0) + 1;
+    if (row.language) languages[row.language] = (languages[row.language] || 0) + 1;
+
+    if (row.author_keywords) {
+      row.author_keywords.split(';').map(k => k.trim()).filter(Boolean).forEach(kw => {
+        akCounts[kw] = (akCounts[kw] || 0) + 1;
+      });
+    }
+    if (row.index_keywords) {
+      row.index_keywords.split(';').map(k => k.trim()).filter(Boolean).forEach(kw => {
+        ikCounts[kw] = (ikCounts[kw] || 0) + 1;
+      });
+    }
+    if (row.authors) {
+      const ids = (row.author_ids || '').split(';').map(s => s.trim());
+      row.authors.split(';').map(a => a.trim()).filter(Boolean).forEach((name, i) => {
+        authCounts[name] = (authCounts[name] || 0) + 1;
+        if (!authIds[name] && ids[i]) authIds[name] = ids[i];
+      });
+    }
+    if (row.source_title) srcCounts[row.source_title] = (srcCounts[row.source_title] || 0) + 1;
+  });
+
+  const sortedByVal = obj => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+
+  return {
+    byYear: Object.fromEntries(Object.entries(byYear).sort((a, b) => +a[0] - +b[0])),
+    docTypes:  Object.fromEntries(sortedByVal(docTypes)),
+    languages: Object.fromEntries(sortedByVal(languages)),
+    authorKeywords: sortedByVal(akCounts).slice(0, 60).map(([kw, n]) => ({ kw, n })),
+    indexKeywords:  sortedByVal(ikCounts).slice(0, 30).map(([kw, n]) => ({ kw, n })),
+    topAuthors: sortedByVal(authCounts).slice(0, 100).map(([name, n]) => ({ name, n, id: authIds[name] || '' })),
+    topSources: sortedByVal(srcCounts).slice(0, 100).map(([src, n]) => ({ src, n })),
+    topCited: [...rows]
+      .sort((a, b) => (b.cited_by || 0) - (a.cited_by || 0))
+      .slice(0, 50)
+      .map(r => ({ title: r.title, authors: r.authors, year: r.year, cited: r.cited_by || 0, doi: r.doi || '' })),
+    articles: rows.map(r => ({
+      title: r.title, authors: r.authors, year: r.year,
+      type: r.document_type, cited: r.cited_by || 0, doi: r.doi || ''
+    }))
+  };
+}
+
+function updateMetrics(rows) {
+  const total = rows.length;
+  if (!total) return;
+
+  const uniqueAuthors = new Set(
+    rows.flatMap(r => r.author_ids ? r.author_ids.split(';').map(s => s.trim()).filter(Boolean) : [])
+  ).size;
+  const uniqueSources = new Set(rows.map(r => r.source_title).filter(Boolean)).size;
+  const openAccess    = rows.filter(r => r.open_access && r.open_access.trim()).length;
+  const topRow        = [...rows].sort((a, b) => (b.cited_by || 0) - (a.cited_by || 0))[0];
+  const years         = rows.map(r => r.year).filter(Boolean);
+  const minY = Math.min(...years), maxY = Math.max(...years);
+
+  const vals = document.querySelectorAll('.metric-value');
+  const subs = document.querySelectorAll('.metric-sub');
+  if (vals[0]) { vals[0].textContent = total.toLocaleString('pt-BR'); if (subs[0]) subs[0].textContent = `${minY} – ${maxY}`; }
+  if (vals[1]) vals[1].textContent = uniqueAuthors.toLocaleString('pt-BR');
+  if (vals[2]) vals[2].textContent = uniqueSources.toLocaleString('pt-BR');
+  if (vals[3]) { vals[3].textContent = openAccess.toLocaleString('pt-BR'); if (subs[3]) subs[3].textContent = `${Math.round(openAccess / total * 100)}% do total`; }
+  if (vals[4] && topRow) vals[4].textContent = (topRow.cited_by || 0).toLocaleString('pt-BR');
+}
+
+function clearSupabaseData() {
+  Object.assign(DATA, JSON.parse(JSON.stringify(STATIC_DATA)));
+  renderAll();
+
+  const badge = document.getElementById('dataBadge');
+  badge.textContent = 'Dados Estáticos';
+  badge.className   = 'badge-scopus';
+
+  // Restaura métricas originais
+  const vals = document.querySelectorAll('.metric-value');
+  const subs = document.querySelectorAll('.metric-sub');
+  const origVals = ['1.050', '2.337', '362', '325', '2.482'];
+  const origSubs = ['1978 – 2026', 'com ID Scopus', 'veículos distintos', '31% do total', 'citações (Gao 2015)'];
+  origVals.forEach((v, i) => { if (vals[i]) vals[i].textContent = v; });
+  origSubs.forEach((s, i) => { if (subs[i]) subs[i].textContent = s; });
+
+  document.getElementById('btnClear').disabled = true;
+}
+
+function renderAll() {
+  const total = DATA.articles.length || 1050;
+  buildYearChart();
+  buildTypeChart();
+  buildBars('langBars', Object.entries(DATA.languages).map(([label, n]) => ({ label, n })), total);
+  buildBars('topKwBars', DATA.authorKeywords.slice(0, 10), null);
+  buildKwChart('chartAK', DATA.authorKeywords, PURPLE);
+  buildKwChart('chartIK', DATA.indexKeywords, TEAL);
+  buildKwCloud();
+
+  const sel = document.getElementById('artYear');
+  sel.innerHTML = '<option value="">Todos os anos</option>';
+  [...new Set(DATA.articles.map(a => a.year))].sort((a, b) => b - a).forEach(y => {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    sel.appendChild(o);
+  });
+
+  renderArticles();
+  renderAuthors();
+  renderSources();
+  renderCitations();
+}
+
 // ═══════════════════════════════════════════
 //  NAVIGATION
 // ═══════════════════════════════════════════
@@ -677,6 +911,9 @@ const AMBER  = '#ba7517';
 const BLUE   = '#185fa5';
 const GRAY   = '#888780';
 
+// Instâncias de charts (necessário destruir antes de recriar)
+let _chartYear = null, _chartType = null, _chartAK = null, _chartIK = null;
+
 function chartDefaults() {
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#6b6a66';
   Chart.defaults.borderColor = 'rgba(0,0,0,0.08)';
@@ -686,9 +923,10 @@ function chartDefaults() {
 
 // ── Year chart ──
 function buildYearChart() {
+  if (_chartYear) { _chartYear.destroy(); _chartYear = null; }
   const years = Object.keys(DATA.byYear).filter(y => y >= 2011);
   const counts = years.map(y => DATA.byYear[y]);
-  new Chart(document.getElementById('chartYear'), {
+  _chartYear = new Chart(document.getElementById('chartYear'), {
     type: 'bar',
     data: {
       labels: years,
@@ -713,10 +951,11 @@ function buildYearChart() {
 
 // ── Doc type doughnut ──
 function buildTypeChart() {
+  if (_chartType) { _chartType.destroy(); _chartType = null; }
   const labels = Object.keys(DATA.docTypes);
   const values = Object.values(DATA.docTypes);
   const colors = [PURPLE, TEAL, CORAL, AMBER, BLUE, GRAY, '#d4537e', '#639922', '#533ab7', '#0f6e56'];
-  new Chart(document.getElementById('chartType'), {
+  _chartType = new Chart(document.getElementById('chartType'), {
     type: 'doughnut',
     data: {
       labels,
@@ -748,8 +987,10 @@ function buildBars(containerId, items, total) {
 
 // ── Keyword horizontal bar charts ──
 function buildKwChart(canvasId, data, color) {
+  if (canvasId === 'chartAK' && _chartAK) { _chartAK.destroy(); _chartAK = null; }
+  if (canvasId === 'chartIK' && _chartIK) { _chartIK.destroy(); _chartIK = null; }
   const top = data.slice(0, 15);
-  new Chart(document.getElementById(canvasId), {
+  const instance = new Chart(document.getElementById(canvasId), {
     type: 'bar',
     data: {
       labels: top.map(d => d.kw),
@@ -765,6 +1006,8 @@ function buildKwChart(canvasId, data, color) {
       }
     }
   });
+  if (canvasId === 'chartAK') _chartAK = instance;
+  if (canvasId === 'chartIK') _chartIK = instance;
 }
 
 // ═══════════════════════════════════════════
@@ -893,7 +1136,7 @@ function renderSourcesPage() {
       <td style="color:var(--muted);font-size:12px">${start + i + 1}</td>
       <td>${s.src}</td>
       <td style="font-weight:500">${s.n}</td>
-      <td style="color:var(--muted)">${Math.round(s.n / 1050 * 100 * 10) / 10}%</td>
+      <td style="color:var(--muted)">${Math.round(s.n / (DATA.articles.length || 1050) * 100 * 10) / 10}%</td>
     </tr>
   `).join('');
 
@@ -982,21 +1225,7 @@ function renderPagination(containerId, total, perPage, current, onClick) {
 
 window.addEventListener('DOMContentLoaded', () => {
   chartDefaults();
-  buildYearChart();
-  buildTypeChart();
-
-  buildBars('langBars', Object.entries(DATA.languages).map(([label, n]) => ({label, n})), 1050);
-  buildBars('topKwBars', DATA.authorKeywords.slice(0, 10), null);
-
-  buildKwChart('chartAK', DATA.authorKeywords, PURPLE);
-  buildKwChart('chartIK', DATA.indexKeywords, TEAL);
-  buildKwCloud();
-
-  populateYearFilter();
-  renderArticles();
-  renderAuthors();
-  renderSources();
-  renderCitations();
+  renderAll();
 });
 </script>
 </body>
