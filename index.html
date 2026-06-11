@@ -357,6 +357,12 @@
 
   /* ── Data source badge ── */
   .badge-live { background: var(--accent2-bg); color: var(--accent-2); }
+
+  /* ── Article table toggle buttons ── */
+  .btn-action.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .col-isbn.hidden-col { display: none; }
 </style>
 </head>
 <body>
@@ -477,6 +483,11 @@
       </select>
       <span class="result-count" id="artCount"></span>
     </div>
+    <div class="search-row">
+      <button class="btn-action" id="btnCleanAbstract" onclick="toggleCleanAbstract()">Limpar resumo vazio/null</button>
+      <button class="btn-action" id="btnMergeIssnIsbn" onclick="toggleMergeIssnIsbn()">Juntar ISSN + ISBN</button>
+      <button class="btn-action" id="btnDoiPlaceholder" onclick="toggleDoiPlaceholder()">DOI vazio → "Sem dados"</button>
+    </div>
     <div class="tbl-wrap">
       <table>
         <thead>
@@ -495,8 +506,8 @@
             <th>Palavras-chave (autor)</th>
             <th>Palavras-chave (índice)</th>
             <th>Referências</th>
-            <th>ISSN</th>
-            <th>ISBN</th>
+            <th id="thIssn">ISSN</th>
+            <th class="col-isbn" id="thIsbn">ISBN</th>
             <th>CODEN</th>
             <th>Idioma</th>
             <th>Tipo</th>
@@ -1068,6 +1079,33 @@ function renderArticles() {
   renderArticlesPage();
 }
 
+// Estados dos botões reversíveis da tabela de artigos
+let cleanAbstract  = false;
+let mergeIssnIsbn  = false;
+let doiPlaceholder = false;
+
+const NO_ABSTRACT_RE = /^\[no abstract available\]$/i;
+
+function toggleCleanAbstract() {
+  cleanAbstract = !cleanAbstract;
+  document.getElementById('btnCleanAbstract').classList.toggle('active', cleanAbstract);
+  renderArticlesPage();
+}
+
+function toggleMergeIssnIsbn() {
+  mergeIssnIsbn = !mergeIssnIsbn;
+  document.getElementById('btnMergeIssnIsbn').classList.toggle('active', mergeIssnIsbn);
+  document.getElementById('thIssn').textContent = mergeIssnIsbn ? 'ISSN / ISBN' : 'ISSN';
+  document.querySelectorAll('.col-isbn').forEach(el => el.classList.toggle('hidden-col', mergeIssnIsbn));
+  renderArticlesPage();
+}
+
+function toggleDoiPlaceholder() {
+  doiPlaceholder = !doiPlaceholder;
+  document.getElementById('btnDoiPlaceholder').classList.toggle('active', doiPlaceholder);
+  renderArticlesPage();
+}
+
 function renderArticlesPage() {
   const filtered = filteredArticles();
   const total = filtered.length;
@@ -1077,7 +1115,14 @@ function renderArticlesPage() {
   document.getElementById('artCount').textContent = `${total.toLocaleString('pt-BR')} resultado(s)`;
 
   const tbody = document.getElementById('artBody');
-  tbody.innerHTML = page.map((a, i) => `
+  tbody.innerHTML = page.map((a, i) => {
+    const abstract = (cleanAbstract && (!a.abstract || NO_ABSTRACT_RE.test(a.abstract.trim()))) ? '' : a.abstract;
+    const doi = (doiPlaceholder && !a.doi) ? 'Sem dados' : a.doi;
+    const issnCell = mergeIssnIsbn
+      ? [a.issn, a.isbn].filter(Boolean).join(' / ')
+      : a.issn;
+
+    return `
     <tr>
       <td style="color:var(--muted);font-size:12px">${start + i + 1}</td>
       <td>
@@ -1091,21 +1136,22 @@ function renderArticlesPage() {
       <td>${a.year || ''}</td>
       <td class="truncate" title="${escapeHtml(a.sourceTitle)}">${escapeHtml(a.sourceTitle)}</td>
       <td style="font-weight:500;text-align:right">${a.cited.toLocaleString('pt-BR')}</td>
-      <td>${escapeHtml(a.doi)}</td>
+      <td>${escapeHtml(doi)}</td>
       <td>${a.link ? `<a href="${escapeHtml(a.link)}" target="_blank">Abrir</a>` : ''}</td>
-      <td class="truncate" title="${escapeHtml(a.abstract)}">${escapeHtml(a.abstract)}</td>
+      <td class="truncate" title="${escapeHtml(abstract)}">${escapeHtml(abstract)}</td>
       <td class="truncate" title="${escapeHtml(a.authorKeywords)}">${escapeHtml(a.authorKeywords)}</td>
       <td class="truncate" title="${escapeHtml(a.indexKeywords)}">${escapeHtml(a.indexKeywords)}</td>
       <td class="truncate" title="${escapeHtml(a.referencesText)}">${escapeHtml(a.referencesText)}</td>
-      <td>${escapeHtml(a.issn)}</td>
-      <td>${escapeHtml(a.isbn)}</td>
+      <td>${escapeHtml(issnCell)}</td>
+      <td class="col-isbn${mergeIssnIsbn ? ' hidden-col' : ''}">${escapeHtml(a.isbn)}</td>
       <td>${escapeHtml(a.coden)}</td>
       <td>${escapeHtml(a.language)}</td>
       <td><span class="pill ${pillClass(a.type)}">${a.type || ''}</span></td>
       <td class="truncate" title="${escapeHtml(a.openAccess)}">${escapeHtml(a.openAccess)}</td>
       <td>${escapeHtml(a.source)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   renderPagination('artPagination', total, artPerPage, artPage, p => { artPage = p; renderArticlesPage(); });
 }
