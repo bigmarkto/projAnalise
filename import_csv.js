@@ -9,7 +9,7 @@ const DIRECT_URL =
 
 const CSV_PATH =
   'C:\\Users\\Marco Antônio\\Downloads\\' +
-  'scopus_export_Apr 30-2026_9d907094-2a69-4cfa-bd7b-0cbf6bd8794c.csv';
+  'scopus_export_Apr 30-2026_9d907094-2a69-4cfa-bd7b-0cbf6bd8794c - scopus_export_Apr 30-2026_9d907094-2a69-4cfa-bd7b-0cbf6bd8794c.csv';
 
 async function main() {
   console.log('\n📦 Importador Scopus → Supabase\n');
@@ -58,7 +58,7 @@ async function main() {
     console.log('Lendo CSV...');
     const content = fs.readFileSync(CSV_PATH, 'utf-8');
     const records = parse(content, {
-      columns:            true,
+      columns: header => header.map(h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim()),
       skip_empty_lines:   true,
       relax_quotes:       true,
       relax_column_count: true,

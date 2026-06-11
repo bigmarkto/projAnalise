@@ -484,9 +484,24 @@
             <th>#</th>
             <th>Título</th>
             <th>Autores</th>
+            <th>Nomes completos dos autores</th>
+            <th>ID(s) dos autores</th>
             <th>Ano</th>
-            <th>Tipo</th>
+            <th>Periódico/Fonte</th>
             <th>Citações</th>
+            <th>DOI</th>
+            <th>Link</th>
+            <th>Resumo</th>
+            <th>Palavras-chave (autor)</th>
+            <th>Palavras-chave (índice)</th>
+            <th>Referências</th>
+            <th>ISSN</th>
+            <th>ISBN</th>
+            <th>CODEN</th>
+            <th>Idioma</th>
+            <th>Tipo</th>
+            <th>Acesso aberto</th>
+            <th>Base</th>
           </tr>
         </thead>
         <tbody id="artBody"></tbody>
@@ -819,7 +834,13 @@ function computeAggregations(rows) {
       .map(r => ({ title: r.title, authors: r.authors, year: r.year, cited: r.cited_by || 0, doi: r.doi || '' })),
     articles: rows.map(r => ({
       title: r.title, authors: r.authors, year: r.year,
-      type: r.document_type, cited: r.cited_by || 0, doi: r.doi || ''
+      type: r.document_type, cited: r.cited_by || 0, doi: r.doi || '',
+      authorFullNames: r.author_full_names || '', authorIds: r.author_ids || '',
+      sourceTitle: r.source_title || '', issn: r.issn || '', isbn: r.isbn || '',
+      coden: r.coden || '', language: r.language || '', openAccess: r.open_access || '',
+      link: r.link || '', abstract: r.abstract || '',
+      authorKeywords: r.author_keywords || '', indexKeywords: r.index_keywords || '',
+      referencesText: r.references_text || '', source: r.source || ''
     }))
   };
 }
@@ -1060,18 +1081,39 @@ function renderArticlesPage() {
     <tr>
       <td style="color:var(--muted);font-size:12px">${start + i + 1}</td>
       <td>
-        <div class="truncate" title="${a.title}">
-          ${a.doi ? `<a href="https://doi.org/${a.doi}" target="_blank">${a.title}</a>` : a.title}
+        <div class="truncate" title="${escapeHtml(a.title)}">
+          ${a.doi ? `<a href="https://doi.org/${escapeHtml(a.doi)}" target="_blank">${escapeHtml(a.title)}</a>` : escapeHtml(a.title)}
         </div>
       </td>
-      <td style="color:var(--muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.authors}</td>
-      <td>${a.year}</td>
-      <td><span class="pill ${pillClass(a.type)}">${a.type}</span></td>
+      <td class="truncate" title="${escapeHtml(a.authors)}">${escapeHtml(a.authors)}</td>
+      <td class="truncate" title="${escapeHtml(a.authorFullNames)}">${escapeHtml(a.authorFullNames)}</td>
+      <td class="truncate" title="${escapeHtml(a.authorIds)}">${escapeHtml(a.authorIds)}</td>
+      <td>${a.year || ''}</td>
+      <td class="truncate" title="${escapeHtml(a.sourceTitle)}">${escapeHtml(a.sourceTitle)}</td>
       <td style="font-weight:500;text-align:right">${a.cited.toLocaleString('pt-BR')}</td>
+      <td>${escapeHtml(a.doi)}</td>
+      <td>${a.link ? `<a href="${escapeHtml(a.link)}" target="_blank">Abrir</a>` : ''}</td>
+      <td class="truncate" title="${escapeHtml(a.abstract)}">${escapeHtml(a.abstract)}</td>
+      <td class="truncate" title="${escapeHtml(a.authorKeywords)}">${escapeHtml(a.authorKeywords)}</td>
+      <td class="truncate" title="${escapeHtml(a.indexKeywords)}">${escapeHtml(a.indexKeywords)}</td>
+      <td class="truncate" title="${escapeHtml(a.referencesText)}">${escapeHtml(a.referencesText)}</td>
+      <td>${escapeHtml(a.issn)}</td>
+      <td>${escapeHtml(a.isbn)}</td>
+      <td>${escapeHtml(a.coden)}</td>
+      <td>${escapeHtml(a.language)}</td>
+      <td><span class="pill ${pillClass(a.type)}">${a.type || ''}</span></td>
+      <td class="truncate" title="${escapeHtml(a.openAccess)}">${escapeHtml(a.openAccess)}</td>
+      <td>${escapeHtml(a.source)}</td>
     </tr>
   `).join('');
 
   renderPagination('artPagination', total, artPerPage, artPage, p => { artPage = p; renderArticlesPage(); });
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // ═══════════════════════════════════════════
