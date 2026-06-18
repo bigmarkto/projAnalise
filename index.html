@@ -484,9 +484,7 @@
       <span class="result-count" id="artCount"></span>
     </div>
     <div class="search-row">
-      <button class="btn-action" id="btnCleanAbstract" onclick="toggleCleanAbstract()">Limpar resumo vazio/null</button>
       <button class="btn-action" id="btnMergeIssnIsbn" onclick="toggleMergeIssnIsbn()">Juntar ISSN + ISBN</button>
-      <button class="btn-action" id="btnDoiPlaceholder" onclick="toggleDoiPlaceholder()">DOI vazio → "Sem dados"</button>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -705,28 +703,7 @@ let DATA = {
     {title:"Inclusive Making: Designing for All Abilities",authors:"Hamraie A.; Fritsch K.",year:2019,cited:138,doi:""},
     {title:"Understanding Maker Movement Entrepreneurship",authors:"Menichinelli M.",year:2016,cited:122,doi:""},
   ],
-  articles: [
-    {title:"The Fifth Element of Biomedical Engineering is Innovation",authors:"Peponis J.; Meyer E.G.",year:2025,type:"Conference paper",cited:0,doi:"10.18260/1-2--57220"},
-    {title:"User Experience Design Methodology for Desktop Laser Cutting Machines",authors:"Liang W. et al.",year:2024,type:"Conference paper",cited:0,doi:"10.1109/IUCC65928.2024.00123"},
-    {title:"Maker Movement and STEM Education: A Meta-Analysis",authors:"Kafai Y.B.; Burke Q.",year:2023,type:"Article",cited:45,doi:""},
-    {title:"3D Printing in K-12 Education: Systematic Review",authors:"Hughes J. et al.",year:2023,type:"Review",cited:32,doi:""},
-    {title:"Makerspaces as Learning Environments",authors:"Peppler K.; Halverson E.R.",year:2022,type:"Article",cited:67,doi:""},
-    {title:"Digital Fabrication and Computational Thinking",authors:"Iivari N.; Kinnula M.",year:2022,type:"Article",cited:41,doi:""},
-    {title:"Open Source Hardware in Education",authors:"Menichinelli M.",year:2022,type:"Book chapter",cited:18,doi:""},
-    {title:"Co-design in Makerspaces",authors:"Vyas D.",year:2021,type:"Conference paper",cited:23,doi:""},
-    {title:"Additive Manufacturing for Sustainable Production",authors:"Giannakos M.N. et al.",year:2021,type:"Article",cited:55,doi:""},
-    {title:"Participatory Design with Marginalized Communities",authors:"Bardzell S.; Bardzell J.",year:2021,type:"Conference paper",cited:79,doi:""},
-    {title:"The status, challenges, and future of additive manufacturing in engineering",authors:"Gao W. et al.",year:2015,type:"Article",cited:2482,doi:"10.1016/j.cad.2015.04.001"},
-    {title:"The maker movement in education",authors:"Halverson E.R.; Sheridan K.M.",year:2014,type:"Article",cited:894,doi:"10.17763/haer.84.4.34j1246676316248"},
-    {title:"The promise of the maker movement for education",authors:"Martin L.",year:2015,type:"Article",cited:655,doi:"10.1007/s10956-014-9510-7"},
-    {title:"Building access: Universal design and the politics of disability",authors:"Hamraie A.",year:2017,type:"Book",cited:461,doi:""},
-    {title:"Making through the lens of culture and power",authors:"Vossoughi S. et al.",year:2016,type:"Article",cited:385,doi:""},
-    {title:"Democratizing technology: Pleasure, utility in DIY",authors:"Tanenbaum T.J. et al.",year:2013,type:"Conference paper",cited:360,doi:""},
-    {title:"Empirical studies on the Maker Movement: A literature review",authors:"Papavlasopoulou S. et al.",year:2017,type:"Article",cited:284,doi:""},
-    {title:"Learning Through STEM-Rich Tinkering",authors:"Bevan B. et al.",year:2015,type:"Article",cited:277,doi:""},
-    {title:"Open Labware: 3-D Printing Your Own Lab Equipment",authors:"Baden T. et al.",year:2015,type:"Article",cited:269,doi:""},
-    {title:"Critical making: Remediation and the Maker movement",authors:"Ratto M.",year:2011,type:"Article",cited:245,doi:""},
-  ]
+  articles: []
 };
 
 // Cópia dos dados estáticos para restaurar após limpar
@@ -880,6 +857,7 @@ function updateMetrics(rows) {
 
 function clearSupabaseData() {
   Object.assign(DATA, JSON.parse(JSON.stringify(STATIC_DATA)));
+  DATA.articles = [];
   renderAll();
 
   const badge = document.getElementById('dataBadge');
@@ -1079,30 +1057,18 @@ function renderArticles() {
   renderArticlesPage();
 }
 
-// Estados dos botões reversíveis da tabela de artigos
-let cleanAbstract  = false;
-let mergeIssnIsbn  = false;
-let doiPlaceholder = false;
+// Estado do botão reversível ISSN+ISBN
+const cleanAbstract  = true;
+const doiPlaceholder = true;
+let   mergeIssnIsbn  = false;
 
 const NO_ABSTRACT_RE = /^\[no abstract available\]$/i;
-
-function toggleCleanAbstract() {
-  cleanAbstract = !cleanAbstract;
-  document.getElementById('btnCleanAbstract').classList.toggle('active', cleanAbstract);
-  renderArticlesPage();
-}
 
 function toggleMergeIssnIsbn() {
   mergeIssnIsbn = !mergeIssnIsbn;
   document.getElementById('btnMergeIssnIsbn').classList.toggle('active', mergeIssnIsbn);
   document.getElementById('thIssn').textContent = mergeIssnIsbn ? 'ISSN / ISBN' : 'ISSN';
   document.querySelectorAll('.col-isbn').forEach(el => el.classList.toggle('hidden-col', mergeIssnIsbn));
-  renderArticlesPage();
-}
-
-function toggleDoiPlaceholder() {
-  doiPlaceholder = !doiPlaceholder;
-  document.getElementById('btnDoiPlaceholder').classList.toggle('active', doiPlaceholder);
   renderArticlesPage();
 }
 
