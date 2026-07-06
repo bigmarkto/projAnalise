@@ -403,52 +403,71 @@
 
   <div class="metrics">
     <div class="metric">
-      <div class="metric-label">Documentos</div>
-      <div class="metric-value">1.050</div>
-      <div class="metric-sub">1978 – 2026</div>
+      <div class="metric-label">Artigos</div>
+      <div class="metric-value" id="mTotal">1.050</div>
+      <div class="metric-sub" id="mTotalSub">1978 – 2026</div>
     </div>
     <div class="metric">
       <div class="metric-label">Autores únicos</div>
-      <div class="metric-value">2.337</div>
-      <div class="metric-sub">com ID Scopus</div>
+      <div class="metric-value" id="mAuthors">2.337</div>
+      <div class="metric-sub" id="mAuthorsSub">com ID Scopus</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Total citações</div>
+      <div class="metric-value" id="mTotalCit">—</div>
+      <div class="metric-sub" id="mTotalCitSub">soma Scopus</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Média citações</div>
+      <div class="metric-value" id="mAvgCit">—</div>
+      <div class="metric-sub" id="mAvgCitSub">por artigo</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">H-index</div>
+      <div class="metric-value" id="mHIndex">—</div>
+      <div class="metric-sub" id="mHIndexSub">da coleção</div>
     </div>
     <div class="metric">
       <div class="metric-label">Periódicos/Anais</div>
-      <div class="metric-value">362</div>
-      <div class="metric-sub">veículos distintos</div>
+      <div class="metric-value" id="mSources">362</div>
+      <div class="metric-sub" id="mSourcesSub">veículos distintos</div>
     </div>
     <div class="metric">
       <div class="metric-label">Open Access</div>
-      <div class="metric-value">325</div>
-      <div class="metric-sub">31% do total</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Mais citado</div>
-      <div class="metric-value">2.482</div>
-      <div class="metric-sub">citações (Gao 2015)</div>
+      <div class="metric-value" id="mOA">325</div>
+      <div class="metric-sub" id="mOASub">31% do total</div>
     </div>
   </div>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-title">Publicações por ano</div>
+      <div class="card-title">Publicações por ano <span style="font-size:11px;color:var(--muted);font-weight:400">— linha: acumulado</span></div>
       <div class="chart-wrap">
         <canvas id="chartYear"></canvas>
       </div>
     </div>
+    <div class="card">
+      <div class="card-title">Citações por ano de publicação</div>
+      <div class="chart-wrap">
+        <canvas id="chartCitYear"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
     <div class="card">
       <div class="card-title">Tipo de documento</div>
       <div class="chart-wrap">
         <canvas id="chartType"></canvas>
       </div>
     </div>
-  </div>
-
-  <div class="grid-2">
     <div class="card">
       <div class="card-title">Idiomas</div>
       <div id="langBars"></div>
     </div>
+  </div>
+
+  <div class="grid-2">
     <div class="card">
       <div class="card-title">Top 10 palavras-chave dos autores</div>
       <div id="topKwBars"></div>
@@ -777,12 +796,24 @@ async function loadFromSupabase() {
   }
 }
 
+function computeHIndex(rows) {
+  const sorted = rows.map(r => r.cited_by || 0).sort((a, b) => b - a);
+  let h = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i] >= i + 1) h = i + 1; else break;
+  }
+  return h;
+}
+
 function computeAggregations(rows) {
-  const byYear = {}, docTypes = {}, languages = {};
+  const byYear = {}, docTypes = {}, languages = {}, citByYear = {};
   const akCounts = {}, ikCounts = {}, authCounts = {}, authIds = {}, srcCounts = {};
 
   rows.forEach(row => {
-    if (row.year) byYear[row.year] = (byYear[row.year] || 0) + 1;
+    if (row.year) {
+      byYear[row.year] = (byYear[row.year] || 0) + 1;
+      citByYear[row.year] = (citByYear[row.year] || 0) + (row.cited_by || 0);
+    }
     if (row.document_type) docTypes[row.document_type] = (docTypes[row.document_type] || 0) + 1;
     if (row.language) languages[row.language] = (languages[row.language] || 0) + 1;
 
@@ -809,7 +840,8 @@ function computeAggregations(rows) {
   const sortedByVal = obj => Object.entries(obj).sort((a, b) => b[1] - a[1]);
 
   return {
-    byYear: Object.fromEntries(Object.entries(byYear).sort((a, b) => +a[0] - +b[0])),
+    byYear:    Object.fromEntries(Object.entries(byYear).sort((a, b) => +a[0] - +b[0])),
+    citByYear: Object.fromEntries(Object.entries(citByYear).sort((a, b) => +a[0] - +b[0])),
     docTypes:  Object.fromEntries(sortedByVal(docTypes)),
     languages: Object.fromEntries(sortedByVal(languages)),
     authorKeywords: sortedByVal(akCounts).slice(0, 60).map(([kw, n]) => ({ kw, n })),
@@ -842,17 +874,21 @@ function updateMetrics(rows) {
   ).size;
   const uniqueSources = new Set(rows.map(r => r.source_title).filter(Boolean)).size;
   const openAccess    = rows.filter(r => r.open_access && r.open_access.trim()).length;
-  const topRow        = [...rows].sort((a, b) => (b.cited_by || 0) - (a.cited_by || 0))[0];
   const years         = rows.map(r => r.year).filter(Boolean);
   const minY = Math.min(...years), maxY = Math.max(...years);
+  const totalCit  = rows.reduce((s, r) => s + (r.cited_by || 0), 0);
+  const avgCit    = (totalCit / total).toFixed(1);
+  const hIndex    = computeHIndex(rows);
 
-  const vals = document.querySelectorAll('.metric-value');
-  const subs = document.querySelectorAll('.metric-sub');
-  if (vals[0]) { vals[0].textContent = total.toLocaleString('pt-BR'); if (subs[0]) subs[0].textContent = `${minY} – ${maxY}`; }
-  if (vals[1]) vals[1].textContent = uniqueAuthors.toLocaleString('pt-BR');
-  if (vals[2]) vals[2].textContent = uniqueSources.toLocaleString('pt-BR');
-  if (vals[3]) { vals[3].textContent = openAccess.toLocaleString('pt-BR'); if (subs[3]) subs[3].textContent = `${Math.round(openAccess / total * 100)}% do total`; }
-  if (vals[4] && topRow) vals[4].textContent = (topRow.cited_by || 0).toLocaleString('pt-BR');
+  document.getElementById('mTotal').textContent      = total.toLocaleString('pt-BR');
+  document.getElementById('mTotalSub').textContent   = `${minY} – ${maxY}`;
+  document.getElementById('mAuthors').textContent    = uniqueAuthors.toLocaleString('pt-BR');
+  document.getElementById('mTotalCit').textContent   = totalCit.toLocaleString('pt-BR');
+  document.getElementById('mAvgCit').textContent     = Number(avgCit).toLocaleString('pt-BR', {minimumFractionDigits:1});
+  document.getElementById('mHIndex').textContent     = `H=${hIndex}`;
+  document.getElementById('mSources').textContent    = uniqueSources.toLocaleString('pt-BR');
+  document.getElementById('mOA').textContent         = openAccess.toLocaleString('pt-BR');
+  document.getElementById('mOASub').textContent      = `${Math.round(openAccess / total * 100)}% do total`;
 }
 
 function clearSupabaseData() {
@@ -864,13 +900,11 @@ function clearSupabaseData() {
   badge.textContent = 'Dados Estáticos';
   badge.className   = 'badge-scopus';
 
-  // Restaura métricas originais
-  const vals = document.querySelectorAll('.metric-value');
-  const subs = document.querySelectorAll('.metric-sub');
-  const origVals = ['1.050', '2.337', '362', '325', '2.482'];
-  const origSubs = ['1978 – 2026', 'com ID Scopus', 'veículos distintos', '31% do total', 'citações (Gao 2015)'];
-  origVals.forEach((v, i) => { if (vals[i]) vals[i].textContent = v; });
-  origSubs.forEach((s, i) => { if (subs[i]) subs[i].textContent = s; });
+  ['mTotal','mAuthors','mTotalCit','mAvgCit','mHIndex','mSources','mOA'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+  document.getElementById('mTotalSub').textContent  = '';
+  document.getElementById('mOASub').textContent     = '';
 
   document.getElementById('btnClear').disabled = true;
 }
@@ -878,6 +912,7 @@ function clearSupabaseData() {
 function renderAll() {
   const total = DATA.articles.length || 1050;
   buildYearChart();
+  buildCitByYearChart();
   buildTypeChart();
   buildBars('langBars', Object.entries(DATA.languages).map(([label, n]) => ({ label, n })), total);
   buildBars('topKwBars', DATA.authorKeywords.slice(0, 10), null);
@@ -922,7 +957,7 @@ const BLUE   = '#185fa5';
 const GRAY   = '#888780';
 
 // Instâncias de charts (necessário destruir antes de recriar)
-let _chartYear = null, _chartType = null, _chartAK = null, _chartIK = null;
+let _chartYear = null, _chartCitYear = null, _chartType = null, _chartAK = null, _chartIK = null;
 
 function chartDefaults() {
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#6b6a66';
@@ -931,29 +966,75 @@ function chartDefaults() {
   Chart.defaults.font.size = 12;
 }
 
-// ── Year chart ──
+// ── Year chart (bars + accumulated line) ──
 function buildYearChart() {
   if (_chartYear) { _chartYear.destroy(); _chartYear = null; }
   const years = Object.keys(DATA.byYear).filter(y => y >= 2011);
   const counts = years.map(y => DATA.byYear[y]);
+  let acc = 0;
+  const accumulated = counts.map(n => (acc += n));
   _chartYear = new Chart(document.getElementById('chartYear'), {
+    data: {
+      labels: years,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Publicações',
+          data: counts,
+          backgroundColor: PURPLE + 'bb',
+          borderColor: PURPLE,
+          borderWidth: 1,
+          borderRadius: 3,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'Acumulado',
+          data: accumulated,
+          borderColor: CORAL,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: 0.3,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { display: false }, ticks: { maxRotation: 45 } },
+        y:  { grid: { color: 'rgba(128,128,128,0.1)' }, beginAtZero: true, position: 'left' },
+        y2: { grid: { display: false }, beginAtZero: true, position: 'right' }
+      }
+    }
+  });
+}
+
+// ── Citations by year chart ──
+function buildCitByYearChart() {
+  if (_chartCitYear) { _chartCitYear.destroy(); _chartCitYear = null; }
+  const el = document.getElementById('chartCitYear');
+  if (!el) return;
+  const years = Object.keys(DATA.citByYear || {}).filter(y => y >= 2011);
+  const cits  = years.map(y => DATA.citByYear[y]);
+  if (!years.length) return;
+  const maxCit = Math.max(...cits);
+  const colors = cits.map(v => v === maxCit ? CORAL + 'ee' : BLUE + 'bb');
+  _chartCitYear = new Chart(el, {
     type: 'bar',
     data: {
       labels: years,
-      datasets: [{
-        data: counts,
-        backgroundColor: PURPLE + 'cc',
-        borderColor: PURPLE,
-        borderWidth: 1,
-        borderRadius: 3,
-      }]
+      datasets: [{ data: cits, backgroundColor: colors, borderRadius: 3, borderWidth: 0 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { display: false }, ticks: { maxRotation: 45 } },
-        y: { grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true }
+        y: { grid: { color: 'rgba(128,128,128,0.1)' }, beginAtZero: true,
+             ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v } }
       }
     }
   });
@@ -983,6 +1064,7 @@ function buildTypeChart() {
 // ── Bar gauges ──
 function buildBars(containerId, items, total) {
   const el = document.getElementById(containerId);
+  if (!el || !items.length) return;
   const max = items[0].n;
   el.innerHTML = items.map(item => `
     <div class="bar-row">
@@ -1148,16 +1230,24 @@ function renderAuthorsPage() {
   const start = (authPage - 1) * authPerPage;
   const page = filtered.slice(start, start + authPerPage);
 
-  document.getElementById('authList').innerHTML = page.map(a => {
-    const initials = a.name.split(',').map(p => p.trim()[0]).join('').toUpperCase().slice(0,2);
+  const maxAuth  = filtered[0]?.n || 1;
+  const authColors = [CORAL, CORAL, CORAL, BLUE, BLUE, BLUE, GRAY, GRAY, GRAY, GRAY, GRAY, GRAY, GRAY, GRAY, GRAY];
+  document.getElementById('authList').innerHTML = page.map((a, i) => {
+    const color = authColors[i] || GRAY;
+    const barW  = Math.round(a.n / maxAuth * 100);
     return `
-      <div class="author-row">
-        <div class="avatar">${initials}</div>
-        <div>
-          <div class="author-name">${a.name}</div>
-          <div class="author-meta">ID Scopus: ${a.id}</div>
+      <div class="author-row" style="align-items:center">
+        <div style="min-width:28px;font-size:12px;font-weight:600;color:var(--muted);text-align:right;padding-right:10px">${start + i + 1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+            <span class="author-name">${a.name}</span>
+            <span style="font-size:12px;color:var(--muted);white-space:nowrap;padding-left:8px">${a.n} doc${a.n > 1 ? 's' : ''}</span>
+          </div>
+          <div style="height:6px;background:var(--bg);border-radius:4px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:${color};border-radius:4px;transition:width 0.5s ease"></div>
+          </div>
+          ${a.id ? `<div class="author-meta" style="margin-top:3px">ID Scopus: ${a.id}</div>` : ''}
         </div>
-        <div class="author-count">${a.n} doc${a.n > 1 ? 's' : ''}</div>
       </div>
     `;
   }).join('');
@@ -1185,14 +1275,27 @@ function renderSourcesPage() {
   const start = (srcPage - 1) * srcPerPage;
   const page = filtered.slice(start, start + srcPerPage);
 
-  document.getElementById('srcBody').innerHTML = page.map((s, i) => `
+  const maxSrc = filtered[0]?.n || 1;
+  const srcColors = [PURPLE, TEAL, CORAL, AMBER, BLUE, GRAY, '#d4537e', '#639922', '#185fa5', '#ba7517'];
+  document.getElementById('srcBody').innerHTML = page.map((s, i) => {
+    const color = srcColors[(start + i) % srcColors.length];
+    const pct   = Math.round(s.n / (DATA.articles.length || 1050) * 100 * 10) / 10;
+    const barW  = Math.round(s.n / maxSrc * 100);
+    return `
     <tr>
       <td style="color:var(--muted);font-size:12px">${start + i + 1}</td>
-      <td>${s.src}</td>
-      <td style="font-weight:500">${s.n}</td>
-      <td style="color:var(--muted)">${Math.round(s.n / (DATA.articles.length || 1050) * 100 * 10) / 10}%</td>
-    </tr>
-  `).join('');
+      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.src}">${s.src}</td>
+      <td style="min-width:160px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:6px;background:var(--bg);border-radius:4px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:${color};border-radius:4px"></div>
+          </div>
+          <span style="font-weight:600;min-width:24px;text-align:right">${s.n}</span>
+        </div>
+      </td>
+      <td style="color:var(--muted);white-space:nowrap">${pct}%</td>
+    </tr>`;
+  }).join('');
 
   renderPagination('srcPagination', filtered.length, srcPerPage, srcPage, p => { srcPage = p; renderSourcesPage(); });
 }
